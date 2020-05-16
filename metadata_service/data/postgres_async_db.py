@@ -5,7 +5,7 @@ import aiopg
 import json
 
 from .db_utils import DBResponse, aiopg_exception_handling, get_db_ts_epoch_str
-from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
+from .models import FlowRow, RunRow, RichRunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
 
 class AsyncPostgresDB(object):
@@ -13,6 +13,7 @@ class AsyncPostgresDB(object):
     __instance = None
     flow_table_postgres = None
     run_table_postgres = None
+    rich_run_table_postgres = None
     step_table_postgres = None
     task_table_postgres = None
     artifact_table_postgres = None
@@ -35,12 +36,14 @@ class AsyncPostgresDB(object):
         tables = []
         self.flow_table_postgres = AsyncFlowTablePostgres()
         self.run_table_postgres = AsyncRunTablePostgres()
+        self.rich_run_table_postgres = AsyncRichRunTablePostgres()
         self.step_table_postgres = AsyncStepTablePostgres()
         self.task_table_postgres = AsyncTaskTablePostgres()
         self.artifact_table_postgres = AsyncArtifactTablePostgres()
         self.metadata_table_postgres = AsyncMetadataTablePostgres()
         tables.append(self.flow_table_postgres)
         tables.append(self.run_table_postgres)
+        tables.append(self.rich_run_table_postgres)
         tables.append(self.step_table_postgres)
         tables.append(self.task_table_postgres)
         tables.append(self.artifact_table_postgres)
@@ -80,11 +83,11 @@ class AsyncPostgresTable(object):
     async def _init(self):
         await PostgresUtils.create_if_missing(self.table_name, self._command)
 
-    async def get_records(self, filter_dict={}, fetch_single=False):
+    async def get_records(self, filter_dict={}, fetch_single=False, operator="="):
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
-            filters.append(col_name + "=" + col_val)
+            filters.append(col_name + operator + col_val)
 
         seperator = " and "
         where_clause = ""
@@ -247,6 +250,56 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         filter_dict = {"flow_id": "'{0}'".format(flow_id)}
         return await self.get_records(filter_dict=filter_dict)
 
+
+
+class AsyncRichRunTablePostgres(AsyncPostgresTable):
+    run_dict = {}
+    run_by_flow_dict = {}
+    _current_count = 0
+    _row_type = RichRunRow
+    table_name = "rich_runs_v2"
+    run_table_name = AsyncRunTablePostgres.table_name
+    _command = """
+    CREATE TABLE {0} (
+        flow_id VARCHAR(255) NOT NULL,
+        run_number INT NOT NULL,
+        ts_epoch BIGINT NOT NULL,
+        success VARCHAR(5),
+        finished VARCHAR(5),
+        finished_at BIGINT,
+        execution_length INT,
+        bucket VARCHAR(64),
+        PRIMARY KEY(flow_id, run_number),
+        FOREIGN KEY(flow_id, run_number) REFERENCES {1} (flow_id, run_number)
+    )
+    """.format(
+        table_name, run_table_name
+    )
+
+    async def add_rich_run(self, run: RichRunRow):
+
+        dict = {
+            "flow_id": run.flow_id,
+            "run_number": run.run_number,
+            "success": run.success,
+            "finished": run.finished,
+            "finished_at": run.finished_at,
+            "execution_length": run.execution_length,
+            "bucket": run.bucket
+        }
+        return await self.create_record(dict)
+
+    async def get_rich_run(self, flow_id: str, run_id):
+        filter_dict = {"flow_id": "'{0}'".format(flow_id), "run_number": str(run_id)}
+        return await self.get_records(filter_dict=filter_dict, fetch_single=True)
+
+    async def get_all_rich_runs(self, flow_id: str):
+        filter_dict = {"flow_id": "'{0}'".format(flow_id)}
+        return await self.get_records(filter_dict=filter_dict)
+
+    async def get_rich_run_since(self, flow_id: str, since_ts: int):
+        filter_dict = {"flow_id": "'{0}'".format(flow_id), "ts_epoch": str(since_ts)}
+        return await self.get_records(filter_dict=filter_dict, operator="<")
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}

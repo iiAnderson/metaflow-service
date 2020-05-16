@@ -61,6 +61,52 @@ class RunRow(object):
         }
 
 
+class RichRunRow(object):
+    flow_id: str = None
+    run_number: int = None
+    ts_epoch: int = 0
+    success: str = None
+    finished: str = None
+    finished_at: int = 0
+    execution_length: int = 0
+    bucket: str = None
+
+    def __init__(
+        self,
+        flow_id,
+        run_number,
+        ts_epoch=None,
+        success=None,
+        finished=None,
+        finished_at=None,
+        execution_length=None,
+        bucket=None
+    ):
+        self.flow_id = flow_id
+        self.run_number = run_number
+        self.success = success
+        self.finished = finished
+        self.finished_at = finished_at
+        self.execution_length = execution_length
+        self.bucket = bucket
+        if ts_epoch is None:
+            ts_epoch = int(round(time.time() * 1000))
+
+        self.ts_epoch = ts_epoch
+
+    def serialize(self):
+        return {
+            "flow_id": self.flow_id,
+            "run_number": self.run_number,
+            "ts_epoch": self.ts_epoch,
+            "success": self.success,
+            "finished": self.finished,
+            "finished_at": self.finished_at,
+            "execution_length": self.execution_length,
+            "bucket": self.bucket
+        }
+
+
 class StepRow(object):
     flow_id: str = None
     run_number: int = None

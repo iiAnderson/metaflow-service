@@ -1,8 +1,7 @@
 version: "3"
 services:
   metadata:
-    image: "metadata_service:latest"
-    container_name: "metadata_service"
+    build: .
     ports:
       - "${MF_METADATA_PORT:-8080}:${MF_METADATA_PORT:-8080}"
     volumes:

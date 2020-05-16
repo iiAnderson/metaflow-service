@@ -11,25 +11,39 @@ from .api.step import StepApi
 from .api.task import TaskApi
 from .api.artifact import ArtificatsApi
 from .api.admin import AuthApi
+from .api.run_detailed import RichRunApi
+from .api.dashboard import DashboardAPI
 
 from .api.metadata import MetadataApi
 from .data.postgres_async_db import AsyncPostgresDB
+import aiohttp_cors
 
 
 def app(loop=None):
 
     loop = loop or asyncio.get_event_loop()
     app = web.Application(loop=loop)
+    cors = aiohttp_cors.setup(app, defaults={
+        "*": aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*",
+            )
+    })
+
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init())
     FlowApi(app)
     RunApi(app)
+    RichRunApi(app)
     StepApi(app)
+    DashboardAPI(app, cors)
     TaskApi(app)
     MetadataApi(app)
     ArtificatsApi(app)
     AuthApi(app)
     setup_swagger(app)
+
     return app
 
 

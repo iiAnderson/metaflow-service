@@ -3,3 +3,4 @@ aiohttp_swagger
 psycopg2
 aiopg
 boto3
+aiohttp_cors
