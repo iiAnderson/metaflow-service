@@ -1,6 +1,6 @@
 aiohttp
 aiohttp_swagger
-psycopg2
+psycopg2-binary
 aiopg
 boto3
 aiohttp_cors

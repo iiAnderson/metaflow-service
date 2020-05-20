@@ -1,10 +1,11 @@
 import asyncio
 import json
+from datetime import datetime, timedelta
 from aiohttp import web
-from .utils import read_body
+from .utils import read_body, get_week_times, get_formatted_time
 from ..data.models import RunRow
 from ..data.postgres_async_db import AsyncPostgresDB
-
+import logging
 
 class DashboardAPI(object):
     _run_table = None
@@ -13,9 +14,9 @@ class DashboardAPI(object):
     def __init__(self, app, cors):
         cors.add(app.router.add_route("GET", "/dashboard/flows", self.get_flows))
         cors.add(app.router.add_route("GET", "/dashboard/flows/{flow_id}/count", self.count_runs))
-        cors.add(app.router.add_route("GET", "/dashboard/flows/{flow_id}/{timestamp}", self.get_runs_since))
         cors.add(app.router.add_route("GET", "/dashboard/flows/{flow_id}/recent", self.get_recent_run))
         cors.add(app.router.add_route("GET", "/dashboard/flows/{flow_id}/last", self.get_last_n_runs))
+        cors.add(app.router.add_route("GET", "/dashboard/flows/{flow_id}/{timestamp}", self.get_runs_since))
 
         self._run_async_table = AsyncPostgresDB.get_instance().run_table_postgres
         self._flow_async_table = AsyncPostgresDB.get_instance().flow_table_postgres
@@ -104,18 +105,24 @@ class DashboardAPI(object):
         else:
             flows = [flow_name]
 
-        count = 0
+        counts = get_week_times()
+        time_bound = (datetime.now() - timedelta(days=7)).timestamp()
 
         for flow_id in flows:
 
-            run_response = await self._run_async_table.get_all_runs(flow_id)
-            count =+ len(run_response.body)
+            run_response = await self._rich_run_async_table.get_rich_run_since(flow_id, time_bound)
 
-        data = {
-            "count": count
-        }
+            for run in run_response.body:
+                
+                logging.error(run)
+                datetime_created = datetime.fromtimestamp(run['ts_epoch']/1000)
+                counts[get_formatted_time(datetime_created)] = counts[get_formatted_time(datetime_created)] + 1
 
-        return web.Response(status=run_response.response_code, body=json.dumps(data))
+        return_data =[]
+        for key, value in counts.items():
+            return_data.append({"time": key, "count": value})
+
+        return web.Response(status=run_response.response_code, body=json.dumps(return_data))
 
     async def get_runs_since(self, request):
         """
@@ -155,6 +162,8 @@ class DashboardAPI(object):
             rich_runs = run_response.body
 
             for rich_run_data in rich_runs:
+                logging.error(flow_id + " " + str(rich_run_data['run_number']))
+
                 run_response = await self._run_async_table.get_run(flow_id, rich_run_data['run_number'])
                 run_data = run_response.body
 

@@ -1,7 +1,7 @@
 import json
 import sys
 import traceback
-
+from datetime import datetime, timedelta
 
 async def read_body(request_content):
     byte_array = bytearray()
@@ -27,3 +27,17 @@ def get_traceback_str():
             "".join(exc_line),
         ]
     )
+
+def get_week_times():
+    now = datetime.now()
+
+    days = {}
+
+    for i in [0, 1, 2, 3, 4, 5, 6]:
+        n_days_ago = now - timedelta(days=i)
+        days[get_formatted_time(n_days_ago)] = 0
+    
+    return days
+
+def get_formatted_time(datetime_obj):
+    return f"{datetime_obj.month}/{datetime_obj.day}"

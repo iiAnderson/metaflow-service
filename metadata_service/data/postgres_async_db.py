@@ -3,6 +3,7 @@ import psycopg2.extras
 import os
 import aiopg
 import json
+import logging
 
 from .db_utils import DBResponse, aiopg_exception_handling, get_db_ts_epoch_str
 from .models import FlowRow, RunRow, RichRunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -83,11 +84,19 @@ class AsyncPostgresTable(object):
     async def _init(self):
         await PostgresUtils.create_if_missing(self.table_name, self._command)
 
-    async def get_records(self, filter_dict={}, fetch_single=False, operator="="):
+    async def get_records(self, filter_dict={}, fetch_single=False, operators=None):
         # generate where clause
         filters = []
+        i = 0
         for col_name, col_val in filter_dict.items():
+            
+            if operators == None:
+                operator = "="
+            else:
+                operator = operators[i]
+
             filters.append(col_name + operator + col_val)
+            i += 1
 
         seperator = " and "
         where_clause = ""
@@ -99,6 +108,7 @@ class AsyncPostgresTable(object):
         ).rstrip()
 
         try:
+            logging.error(select_sql)
             with (
                 await AsyncPostgresDB.get_instance().pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
@@ -299,7 +309,7 @@ class AsyncRichRunTablePostgres(AsyncPostgresTable):
 
     async def get_rich_run_since(self, flow_id: str, since_ts: int):
         filter_dict = {"flow_id": "'{0}'".format(flow_id), "ts_epoch": str(since_ts)}
-        return await self.get_records(filter_dict=filter_dict, operator="<")
+        return await self.get_records(filter_dict=filter_dict, operators=["=", ">"])
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
